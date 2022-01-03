@@ -1,7 +1,10 @@
-from flask import Flask, jsonify, request, redirect, url_for, render_template
+from flask import Flask, jsonify, request, redirect, url_for, render_template,Response
 from sqlalchemy import create_engine, func
 from flask_sqlalchemy import SQLAlchemy
 import datetime
+import logging
+import json
+
 
 database_path = "my.db"
 app = Flask(__name__)
@@ -33,12 +36,16 @@ class Taskcap(db.Model):
     Personid = db.Column(db.ForeignKey("personcap.id"))
     active = db.Column(db.Boolean,default=True) 
 ###################################################################
+
+############################################
 @app.route('/')
+
 def index():
     people = Person.query.all()
     return render_template('index.html', people=people)
 
 @app.route('/task',methods=["POST"])
+
 def addtask():
     req = request.get_json()
     name = req.get("name")
@@ -51,6 +58,7 @@ def addtask():
     return {"id":task.id,"name":name,"personid":personid}
 
 @app.route('/task')
+
 def gettask():
     tasks = Task.query.filter_by(active=True).all()
     tasklist = []
@@ -59,6 +67,7 @@ def gettask():
     return {"tasks":tasklist}
 
 @app.route('/updatetask',methods=["POST"])
+
 def updatetask():
     req = request.get_json()
     taskid = req.get("taskid")
@@ -70,11 +79,63 @@ def updatetask():
     return {"id":task.id,"name":task.Name,"personid":personid}
 
 @app.route('/deletetask',methods=["POST"])
+
 def deletetask():
     req = request.get_json()
     todelete = req.get("todelete")
     for taskid in todelete:
         task = Task.query.filter_by(id=taskid).first()
+        task.active = False
+        db.session.commit()
+    return {}
+##############################################################################################
+@app.route('/cap')
+
+def indexcap():
+    peoplecap = Personcap.query.all()
+    return render_template('index_new.html', peoplecap=peoplecap)
+
+@app.route('/taskcap',methods=["POST"])
+
+def addtaskcap():
+    req = request.get_json()
+    name = req.get("name")
+    personid = req.get("personid")
+    if not personid:
+        personid = Personcap.query.order_by(Personcap.Position.asc()).first().id
+    task = Taskcap(Name=name, Personid=personid)
+    db.session.add(task)
+    db.session.commit()
+    return {"id":task.id,"name":name,"personid":personid}
+
+@app.route('/taskcap')
+
+def gettaskcap():
+    tasks = Taskcap.query.filter_by(active=True).all()
+    tasklist = []
+    for t in tasks:
+        tasklist.append({"id":t.id,"name":t.Name,"personid":t.Personid,"personname":t.personcap.Name})#back reference personcap
+    return {"tasks":tasklist}
+
+@app.route('/updatetaskcap',methods=["POST"], endpoint='updatetaskcap')
+
+def updatetaskcap():
+    req = request.get_json()
+    taskid = req.get("taskid")
+    column = req.get("column")
+    personid = Personcap.query.filter_by(Name=column).first().id
+    task = Taskcap.query.filter_by(id=taskid).first()
+    task.Personid = personid
+    db.session.commit()
+    return {"id":task.id,"name":task.Name,"personid":personid}
+
+@app.route('/deletetaskcap',methods=["POST"])
+
+def deletetaskcap():
+    req = request.get_json()
+    todelete = req.get("todelete")
+    for taskid in todelete:
+        task = Taskcap.query.filter_by(id=taskid).first()
         task.active = False
         db.session.commit()
     return {}
